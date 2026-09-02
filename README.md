@@ -126,6 +126,7 @@ azd up
 | [Deployment Guide](./documents/DeploymentGuide.md) | Step-by-step deployment instructions |
 | [Demonstrator Guide](./documents/DeploymentGuide.md) | Details on how to use and showcase the solution accelerator |
 | [Troubleshooting](./documents/TroubleShootingSteps.md) | Common issues and solutions |
+| [Lab FAQ](./documents/FAQ.md) | Deployment, authentication, access, and operational questions |
 
 ---
 
