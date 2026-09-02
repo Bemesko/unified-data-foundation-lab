@@ -1,174 +1,174 @@
-# Lab FAQ
+# FAQ do Laboratório
 
-This FAQ covers the deployment and operational issues most commonly encountered when running the Agentic Applications for Unified Data Foundation lab with Microsoft Fabric and Azure AI Foundry.
+Este FAQ aborda os problemas de implantação e operação mais comuns ao executar o laboratório Agentic Applications for Unified Data Foundation com Microsoft Fabric e Azure AI Foundry.
 
-## Before deploying
+## Antes da implantação
 
-### What permissions does the deployment user need?
+### Quais permissões o usuário de implantação precisa ter?
 
-The deployment user needs permission to create Azure resources, create Microsoft Entra application registrations, and create Azure role assignments. `Owner` at subscription scope is the simplest lab setup. In a least-privilege environment, combine resource-creation permissions with `User Access Administrator` where role assignments are required.
+O usuário de implantação precisa de permissão para criar recursos do Azure, criar registros de aplicativo do Microsoft Entra e criar atribuições de função do Azure. `Owner` no escopo da assinatura é a configuração mais simples para o laboratório. Em um ambiente com menor privilégio, combine permissões de criação de recursos com `User Access Administrator` quando forem necessárias atribuições de função.
 
-Fabric also needs a tenant member who can administer the capacity and workspace. A B2B guest cannot be a Fabric capacity administrator.
+O Fabric também precisa de um membro do tenant que possa administrar a capacidade e o workspace. Um convidado B2B não pode ser administrador de capacidade do Fabric.
 
-### Which Fabric tenant settings must be enabled?
+### Quais configurações de tenant do Fabric devem ser habilitadas?
 
-In the [Fabric admin portal](https://app.fabric.microsoft.com/admin-portal), enable these tenant settings for the deployment users:
+No [portal de administração do Fabric](https://app.fabric.microsoft.com/admin-portal), habilite estas configurações de tenant para os usuários da implantação:
 
 - **Ontology (preview)**
 - **Graph (preview)**
 - **Copilot and Azure OpenAI Service**
 
-Allow up to 15 minutes for tenant-setting changes to propagate before initializing the Fabric scenario.
+Aguarde até 15 minutos para a propagação das alterações antes de inicializar o cenário do Fabric.
 
-### What local tools are required?
+### Quais ferramentas locais são necessárias?
 
-Use PowerShell 7+, Azure Developer CLI (`azd`), Azure CLI (`az`), Bicep, Python 3.9+, Docker Desktop, Git, and Microsoft ODBC Driver 17. See the [Deployment Guide](./DeploymentGuide.md) for supported environment options.
+Use PowerShell 7+, Azure Developer CLI (`azd`), Azure CLI (`az`), Bicep, Python 3.9+, Docker Desktop, Git e Microsoft ODBC Driver 17. Consulte o [Guia de Implantação](./DeploymentGuide.md) para conhecer os ambientes com suporte.
 
-### How much Fabric capacity is required?
+### Quanta capacidade do Fabric é necessária?
 
-The lab requires an F2 or higher Fabric capacity. The capacity must be available in a region that supports the Fabric workloads used by the selected scenario.
+O laboratório requer uma capacidade Fabric F2 ou superior. A capacidade deve estar disponível em uma região compatível com as cargas de trabalho do Fabric usadas pelo cenário selecionado.
 
-### How do I choose a region?
+### Como escolho uma região?
 
-Check all of the following before provisioning:
+Verifique todos os itens abaixo antes de provisionar:
 
-1. App Service plan quota and regional availability.
-2. Azure AI Foundry availability and model quota for both the chat and embedding deployments.
-3. Fabric capacity availability and required Fabric workloads.
-4. Azure Container Registry, Azure AI Search, Storage, Cosmos DB, and monitoring availability.
+1. Cota e disponibilidade regional do plano do App Service.
+2. Disponibilidade do Azure AI Foundry e cota de modelo para as implantações de chat e de embeddings.
+3. Disponibilidade da capacidade Fabric e das cargas de trabalho necessárias do Fabric.
+4. Disponibilidade de Azure Container Registry, Azure AI Search, Storage, Cosmos DB e monitoramento.
 
-The default region is not guaranteed to have sufficient quota in every subscription. The [Quota Check](./QuotaCheck.md) guide covers model quota; App Service quotas must also be checked separately.
+A região padrão não tem necessariamente cota suficiente em todas as assinaturas. O guia [Quota Check](./QuotaCheck.md) explica a cota de modelos; as cotas do App Service também devem ser verificadas separadamente.
 
-### Can I deploy resources in more than one region?
+### Posso implantar recursos em mais de uma região?
 
-Yes. This lab supports a split-region deployment when a single region cannot host every required service. Keep the application-facing resources together where possible, and place Fabric, Foundry, and Cosmos DB in a compatible region with sufficient capacity. Configure the locations through the documented `azd` environment parameters in [Customizing azd Parameters](./CustomizingAzdParameters.md).
+Sim. Este laboratório dá suporte a uma implantação em regiões separadas quando uma única região não consegue hospedar todos os serviços necessários. Mantenha os recursos voltados ao aplicativo juntos sempre que possível e coloque Fabric, Foundry e Cosmos DB em uma região compatível que tenha capacidade suficiente. Configure os locais usando os parâmetros de ambiente `azd` documentados em [Customizing azd Parameters](./CustomizingAzdParameters.md).
 
-### Azure reports zero App Service VM quota. What should I do?
+### O Azure informa que a cota de VMs do App Service é zero. O que devo fazer?
 
-This is a subscription quota constraint, not a template error. Check both the requested App Service SKU quota and the aggregate **Total Regional VMs** quota for the region. If either is zero, request quota through the Azure portal or choose another region with capacity. Increasing the App Service SKU does not bypass a zero aggregate regional VM quota.
+Essa é uma restrição de cota da assinatura, não um erro do template. Verifique tanto a cota do SKU de App Service solicitado quanto a cota agregada **Total Regional VMs** da região. Se qualquer uma for zero, solicite cota pelo portal do Azure ou escolha outra região com capacidade. Aumentar o SKU do App Service não contorna uma cota regional agregada de VMs igual a zero.
 
-### My deployment fails during a What-If or preview. Is the deployment itself broken?
+### Minha implantação falha durante What-If ou preview. A implantação está quebrada?
 
-Not necessarily. A large nested deployment can exceed the Azure Resource Manager What-If request-size limit even when normal incremental deployment succeeds. Validate Bicep compilation and parameter mappings, then use the regular incremental deployment path if the preview error specifically reports a request-size limit.
+Não necessariamente. Uma implantação aninhada grande pode exceder o limite de tamanho de solicitação do Azure Resource Manager para What-If, mesmo quando a implantação incremental normal funciona. Valide a compilação do Bicep e o mapeamento dos parâmetros e, se o erro de preview indicar especificamente limite de tamanho da solicitação, use o caminho normal de implantação incremental.
 
-## Deploying and initializing the scenario
+## Implantando e inicializando o cenário
 
-### Why does `azd up` ask for values that are already in my environment?
+### Por que `azd up` solicita valores que já estão no meu ambiente?
 
-`azd` may prompt for missing or invalid environment values. Configure the environment first with `azd env set`, then rerun the command. Avoid placing array-valued Bicep parameters directly in an `azd` environment unless the template explicitly accepts a JSON string and parses it.
+O `azd` pode solicitar valores de ambiente ausentes ou inválidos. Configure o ambiente primeiro com `azd env set` e execute o comando novamente. Evite colocar parâmetros Bicep com valor de array diretamente em um ambiente `azd`, a menos que o template aceite explicitamente uma cadeia JSON e faça seu parsing.
 
-### The Fabric capacity deployment succeeds but scenario initialization fails. What should I check?
+### A implantação da capacidade Fabric foi concluída, mas a inicialização do cenário falha. O que devo verificar?
 
-Confirm that:
+Confirme que:
 
-- The capacity is active and has at least F2 capacity.
-- The workspace is assigned to that capacity.
-- The Fabric tenant settings are enabled and fully propagated.
-- The identity running initialization is a tenant member with workspace and capacity administrative access.
+- A capacidade está ativa e possui no mínimo F2.
+- O workspace está atribuído a essa capacidade.
+- As configurações de tenant do Fabric estão habilitadas e já foram propagadas.
+- A identidade que executa a inicialização é membro do tenant e tem acesso administrativo ao workspace e à capacidade.
 
-### Why cannot my guest account administer the Fabric capacity?
+### Por que minha conta de convidado não pode administrar a capacidade Fabric?
 
-Fabric capacity administration requires a tenant-member account. Use a member account in the tenant for the capacity administrator, then grant the guest access to the workspace and Azure resources as needed.
+A administração de capacidade do Fabric exige uma conta membro do tenant. Use uma conta membro do tenant como administradora da capacidade e, depois, conceda ao convidado acesso ao workspace e aos recursos do Azure quando necessário.
 
-### Why does Azure AI Search return 403 during scenario initialization?
+### Por que o Azure AI Search retorna 403 durante a inicialização do cenário?
 
-The initialization identity needs Azure AI Search data-plane permissions, not only management-plane permissions. Assign **Search Index Data Contributor** to write index documents; **Search Service Contributor** may also be required for service-level setup actions.
+A identidade de inicialização precisa de permissões de plano de dados do Azure AI Search, não somente de plano de gerenciamento. Atribua **Search Index Data Contributor** para gravar documentos no índice; **Search Service Contributor** também pode ser necessário para ações de configuração no nível do serviço.
 
-### Can I reuse an existing Foundry project or Log Analytics workspace?
+### Posso reutilizar um projeto Foundry ou workspace do Log Analytics existente?
 
-Yes. Set the corresponding environment parameters before deployment. Follow [Reusing an Existing Azure AI Foundry Project](./re-use-foundry-project.md) and [Reusing an Existing Log Analytics Workspace](./re-use-log-analytics.md), and ensure the deployment identity has the required roles on the reused resource.
+Sim. Defina os parâmetros de ambiente correspondentes antes da implantação. Siga [Reusing an Existing Azure AI Foundry Project](./re-use-foundry-project.md) e [Reusing an Existing Log Analytics Workspace](./re-use-log-analytics.md) e confirme que a identidade de implantação tem as funções necessárias no recurso reutilizado.
 
-## Sign-in and web chat
+## Login e chat web
 
-### The application loads, but sending a message returns 405. What causes this?
+### O aplicativo abre, mas enviar uma mensagem retorna 405. Qual é a causa?
 
-The frontend reverse proxy is not configured for the API. Ensure the frontend App Service has `BACKEND_API_HOST` set to the API host name. The frontend container uses this setting to generate its `/api` proxy; without it, Nginx handles `POST /api/chat` as a static-site request.
+O proxy reverso do frontend não está configurado para a API. Confirme que o App Service do frontend possui `BACKEND_API_HOST` configurado com o nome de host da API. O contêiner do frontend usa essa configuração para gerar o proxy `/api`; sem ela, o Nginx trata `POST /api/chat` como uma solicitação de site estático.
 
-### The application loads, but every message fails after enabling sign-in. What should I check?
+### O aplicativo abre, mas todas as mensagens falham após habilitar o login. O que devo verificar?
 
-Use the same-origin `/api` endpoint from the browser. Do not configure the browser to call the API App Service directly, because that bypasses the frontend proxy and its token forwarding. Set `APP_API_BASE_URL` to an empty/relative value and configure `BACKEND_API_HOST` on the frontend.
+Use o endpoint `/api` da mesma origem no navegador. Não configure o navegador para chamar o App Service da API diretamente, pois isso ignora o proxy do frontend e o encaminhamento de token. Defina `APP_API_BASE_URL` como vazio/relativo e configure `BACKEND_API_HOST` no frontend.
 
-### Why is OBO required for Fabric Data Agent questions?
+### Por que OBO é necessário para perguntas ao Fabric Data Agent?
 
-Fabric Data Agent queries execute with the signed-in user's identity. The API must use the Microsoft Entra On-Behalf-Of (OBO) flow; managed identity is not a substitute for this delegated Fabric access path. Follow [Set Up OBO Authentication](./SetupOBOAuthentication.md).
+As consultas ao Fabric Data Agent são executadas com a identidade do usuário conectado. A API deve usar o fluxo On-Behalf-Of (OBO) do Microsoft Entra; identidade gerenciada não substitui esse caminho de acesso delegado ao Fabric. Siga [Set Up OBO Authentication](./SetupOBOAuthentication.md).
 
-### What does the OBO setup script configure?
+### O que o script de configuração OBO configura?
 
-It creates or configures a shared app registration, a delegated `user_impersonation` scope, API permissions and consent, EasyAuth on both App Services, token storage, and OBO settings on the API. Authentication changes can take up to 10 minutes to propagate.
+Ele cria ou configura um registro de aplicativo compartilhado, um escopo delegado `user_impersonation`, permissões de API e consentimento, EasyAuth nos dois App Services, armazenamento de token e configurações OBO na API. Alterações de autenticação podem levar até 10 minutos para serem propagadas.
 
-### A signed-in user sees “An error occurred. Please try again later.” How do I diagnose it?
+### Um usuário conectado vê “An error occurred. Please try again later.” Como diagnostico?
 
-Download the API App Service logs and correlate the request timestamp. Check, in order:
+Baixe os logs do App Service da API e relacione-os ao horário da solicitação. Verifique, nesta ordem:
 
-1. The frontend forwarded an access token.
-2. The API selected an OBO credential rather than a managed identity fallback.
-3. The user has Fabric workspace access.
-4. The user has Azure AI Foundry data-plane permissions.
+1. O frontend encaminhou um token de acesso.
+2. A API selecionou uma credencial OBO, em vez de usar identidade gerenciada como alternativa.
+3. O usuário tem acesso ao workspace Fabric.
+4. O usuário tem permissões de plano de dados no Azure AI Foundry.
 
-Avoid relying on the browser message alone; the API log identifies the downstream service and denied action.
+Não dependa apenas da mensagem do navegador; o log da API identifica o serviço downstream e a ação negada.
 
-### The API log says the user lacks `Microsoft.CognitiveServices/accounts/AIServices/agents/write`. How do I fix it?
+### O log da API informa que falta `Microsoft.CognitiveServices/accounts/AIServices/agents/write`. Como corrigir?
 
-Assign **Foundry User** to the user at the Foundry project scope. If project-scope assignment is unavailable in your environment, assign it at the Foundry account scope. This Foundry data-plane role grants the agent actions required to create conversations and runs.
+Atribua **Foundry User** ao usuário no escopo do projeto Foundry. Se a atribuição no escopo do projeto não estiver disponível no seu ambiente, atribua-a no escopo da conta Foundry. Essa função de plano de dados do Foundry concede as ações de agente necessárias para criar conversas e execuções.
 
-`Owner`, `Azure AI Developer`, and `Cognitive Services OpenAI User` do not by themselves grant the required Foundry Agent data actions.
+`Owner`, `Azure AI Developer` e `Cognitive Services OpenAI User` não concedem, sozinhos, as ações necessárias do Foundry Agent.
 
-### Which Foundry role should an application user receive?
+### Qual função Foundry um usuário do aplicativo deve receber?
 
-Use **Foundry User** for users who need to build or test against the project and run the agent workflow. Use **Foundry Agent Consumer** only when endpoint-consumption permissions are sufficient. Use **Foundry Project Manager** or **Foundry Owner** only for users who need project-management or broader administrative responsibilities.
+Use **Foundry User** para pessoas que precisam criar ou testar no projeto e executar o fluxo do agente. Use **Foundry Agent Consumer** somente quando as permissões de consumo de endpoint forem suficientes. Use **Foundry Project Manager** ou **Foundry Owner** apenas para pessoas que precisam gerenciar o projeto ou ter responsabilidades administrativas mais amplas.
 
-### A user received a new role but still gets 403. What now?
+### Um usuário recebeu uma nova função, mas continua recebendo 403. E agora?
 
-Wait for Azure RBAC propagation, then refresh the browser session or sign out and in again. Recheck the role assignment scope and principal object ID before changing application code.
+Aguarde a propagação do Azure RBAC e atualize a sessão do navegador ou saia e entre novamente. Verifique novamente o escopo da atribuição de função e o ID de objeto do principal antes de alterar o código do aplicativo.
 
-## Access management
+## Gerenciamento de acesso
 
-### What access does a lab administrator usually need?
+### De quais acessos um administrador do laboratório geralmente precisa?
 
-A lab administrator normally needs Azure resource management access, Fabric capacity and workspace administration, Foundry project access, and the relevant data-plane roles for Search, Storage, Cosmos DB, and ACR. Assign only roles needed for the person’s responsibilities outside a lab environment.
+Um administrador do laboratório normalmente precisa de acesso de gerenciamento de recursos do Azure, administração de capacidade e workspace Fabric, acesso ao projeto Foundry e funções relevantes de plano de dados para Search, Storage, Cosmos DB e ACR. Fora de um ambiente de laboratório, atribua apenas as funções necessárias para as responsabilidades da pessoa.
 
-### Does subscription Owner grant access to all data planes?
+### A função Owner na assinatura concede acesso a todos os planos de dados?
 
-No. Azure management-plane ownership does not automatically grant data-plane access to services such as Azure AI Search, Storage, Cosmos DB, Fabric, or Foundry agents. Assign their service-specific roles explicitly.
+Não. A função Owner no plano de gerenciamento do Azure não concede automaticamente acesso aos planos de dados de serviços como Azure AI Search, Storage, Cosmos DB, Fabric ou agentes Foundry. Atribua explicitamente as funções específicas de cada serviço.
 
-### What roles are commonly needed to initialize the sample data?
+### Quais funções geralmente são necessárias para inicializar os dados de exemplo?
 
-Depending on the operation, the initializing identity may need:
+Dependendo da operação, a identidade de inicialização pode precisar de:
 
-| Service | Typical role |
+| Serviço | Função típica |
 |---|---|
 | Azure AI Search | Search Index Data Contributor |
 | Storage | Storage Blob Data Contributor |
 | Cosmos DB | Cosmos DB Built-in Data Contributor |
 | Azure Container Registry | AcrPush |
-| Fabric workspace | Admin or Contributor |
-| Foundry project | Foundry User or a broader Foundry project role |
+| Workspace Fabric | Admin ou Contributor |
+| Projeto Foundry | Foundry User ou uma função Foundry mais ampla |
 
-## Operations and recovery
+## Operação e recuperação
 
-### How do I confirm that the application is healthy?
+### Como confirmo que o aplicativo está saudável?
 
-Verify both App Service endpoints return successfully, then test:
+Verifique se os dois endpoints do App Service respondem com sucesso e teste:
 
-1. A simple non-Fabric chat message.
-2. A Fabric data question, such as revenue by year.
-3. A search-grounded question, if a knowledge base is configured.
+1. Uma mensagem de chat simples, sem Fabric.
+2. Uma pergunta de dados do Fabric, por exemplo, receita por ano.
+3. Uma pergunta baseada em busca, se uma base de conhecimento estiver configurada.
 
-For authenticated requests, confirm API logs show user-token forwarding, OBO credential selection, and successful streaming completion.
+Para solicitações autenticadas, confirme nos logs da API o encaminhamento de token do usuário, a seleção da credencial OBO e a conclusão bem-sucedida do streaming.
 
-### What should I collect before reporting a problem?
+### O que devo coletar antes de relatar um problema?
 
-Collect the approximate UTC timestamp, the signed-in user, the exact prompt, the browser response, and the relevant API App Service log entries. Redact access tokens, client secrets, connection strings, and other credentials before sharing logs.
+Colete o horário aproximado em UTC, o usuário conectado, o prompt exato, a resposta do navegador e as entradas relevantes do log do App Service da API. Remova tokens de acesso, segredos de cliente, cadeias de conexão e outras credenciais antes de compartilhar logs.
 
-### Should generated scenario configuration be committed?
+### A configuração gerada do cenário deve ser versionada?
 
-No. Generated scenario configuration can contain environment-specific resource IDs and deployment artifacts. Keep it out of source control and document only redacted, reusable deployment guidance.
+Não. A configuração gerada do cenário pode conter IDs de recursos específicos do ambiente e artefatos de implantação. Mantenha-a fora do controle de versão e documente apenas orientações de implantação reutilizáveis e sem informações sensíveis.
 
-### How do I delete the lab?
+### Como excluo o laboratório?
 
-Delete the resource group only when you no longer need the deployment and have confirmed that no shared resources are being reused. See [Delete Resource Group](./DeleteResourceGroup.md).
+Exclua o grupo de recursos somente quando não precisar mais da implantação e tiver confirmado que nenhum recurso compartilhado está sendo reutilizado. Consulte [Delete Resource Group](./DeleteResourceGroup.md).
 
-## Related documentation
+## Documentação relacionada
 
 - [Deployment Guide](./DeploymentGuide.md)
 - [Fabric Deployment](./Fabric_deployment.md)
