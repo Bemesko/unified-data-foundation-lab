@@ -169,7 +169,13 @@ param azureFabricCapacityName string = ''
 @description('Optional. SKU tier of the Fabric capacity resource.')
 param fabricCapacitySku string = 'F2'
 
-@description('Optional. Additional user/service principal object IDs to assign as Fabric Capacity admins.')
+@description('Optional. Azure region for a new Fabric capacity. Empty uses the primary Azure region.')
+param fabricCapacityLocation string = ''
+
+@description('Optional. Azure region for a new Cosmos DB account. Empty uses the primary Azure region.')
+param cosmosDbLocation string = ''
+
+@description('Optional. Fabric Capacity admin identities. When provided, replaces the default deploying user identity.')
 param fabricAdminMembers array = []
 
 // ============================================================================
@@ -224,14 +230,13 @@ var useUserAccessTokenSetting = useUserAccessToken ? 'True' : 'False'
 var useExistingFabricCapacity = !empty(azureFabricCapacityName)
 var shouldCreateFabricCapacity = createFabricWorkspace && !useExistingFabricCapacity
 var fabricCapacityResourceName = useExistingFabricCapacity ? azureFabricCapacityName : 'fc${solutionSuffix}'
-var fabricCapacityDefaultAdmins = contains(deployerInfo, 'userPrincipalName')
-  ? [deployerInfo.userPrincipalName]
-  : [deployerInfo.objectId]
-var fabricTotalAdminMembers = union(fabricCapacityDefaultAdmins, fabricAdminMembers)
+var effectiveFabricCapacityLocation = empty(fabricCapacityLocation) ? location : fabricCapacityLocation
+var effectiveCosmosDbLocation = empty(cosmosDbLocation) ? location : cosmosDbLocation
+var fabricCapacityDefaultAdmins = [deployerInfo.userPrincipalName]
+var fabricTotalAdminMembers = empty(fabricAdminMembers) ? fabricCapacityDefaultAdmins : fabricAdminMembers
 
-// Tags: merge caller-supplied tags with standard metadata (matching old infra)
-var existingTags = resourceGroup().tags ?? {}
-var resourceTags = union(existingTags, tags, {
+// Tags are explicit so azd preview can evaluate a newly created resource group.
+var resourceTags = union(tags, {
   TemplateName: 'Unified Data Analysis Agents'
   CreatedBy: createdBy
   DeploymentName: deployment().name
@@ -335,7 +340,7 @@ module fabricCapacity './modules/fabric/fabric-capacity.bicep' = if (shouldCreat
   name: take('module.fabric-capacity.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    location: location
+    location: effectiveFabricCapacityLocation
     skuName: fabricCapacitySku
     adminMembers: fabricTotalAdminMembers
     tags: resourceTags
@@ -359,7 +364,7 @@ module log_analytics './modules/monitoring/log-analytics.bicep' = if (enableMoni
   name: take('module.log-analytics.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    location: location
+    location: azureAiServiceLocation
     tags: tags
     enableTelemetry: enableTelemetry
     retentionInDays: 365
@@ -417,7 +422,7 @@ module virtualNetwork './modules/networking/virtual-network.bicep' = if (enableP
   name: take('module.virtual-network.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    location: location
+    location: effectiveCosmosDbLocation
     tags: tags
     enableTelemetry: enableTelemetry
     addressPrefixes: ['10.0.0.0/8']
@@ -975,9 +980,6 @@ module backend_csapi_docker './modules/compute/app-service.bicep' = if (backendR
   }
 }
 
-// Frontend
-var apiBaseUrl = backendRuntimeStack == 'python' ? backend_docker!.outputs.appUrl : backend_csapi_docker!.outputs.appUrl
-
 module frontend_docker './modules/compute/app-service.bicep' = {
   name: take('module.app-service-frontend.${solutionName}', 64)
   params: {
@@ -995,8 +997,8 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     contentShareTraffic: enablePrivateNetworking ? true : false
     diagnosticSettings: monitoringDiagnosticSettings
     appSettings: {
-      APP_API_BASE_URL: enablePrivateNetworking ? '' : apiBaseUrl
-      BACKEND_API_HOST: enablePrivateNetworking ? backendRuntimeStack == 'python' ? 'api-${solutionSuffix}.azurewebsites.net' : 'api-cs-${solutionSuffix}.azurewebsites.net' : ''
+      APP_API_BASE_URL: ''
+      BACKEND_API_HOST: backendRuntimeStack == 'python' ? 'api-${solutionSuffix}.azurewebsites.net' : 'api-cs-${solutionSuffix}.azurewebsites.net'
       CHAT_LANDING_TEXT: ''
       APP_TITLE_PRIMARY: appTitlePrimary
       APP_TITLE_SECONDARY: appTitleSecondary
@@ -1144,4 +1146,3 @@ output AZURE_FABRIC_CAPACITY_NAME string = createFabricWorkspace ? fabricCapacit
 
 @description('The identities assigned as Fabric Capacity Admin members.')
 output FABRIC_ADMIN_MEMBERS array = shouldCreateFabricCapacity ? fabricTotalAdminMembers : []
-

@@ -86,6 +86,12 @@
     "fabricCapacitySku": {
       "value": "${FABRIC_CAPACITY_SKU=F2}"
     },
+    "fabricCapacityLocation": {
+      "value": "${AZURE_ENV_FABRIC_CAPACITY_LOCATION=}"
+    },
+    "cosmosDbLocation": {
+      "value": "${AZURE_ENV_COSMOS_DB_LOCATION=}"
+    },
     "fabricAdminMembers": {
       "value": "${FABRIC_ADMIN_MEMBERS=[]}"
     }

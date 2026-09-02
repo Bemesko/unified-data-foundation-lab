@@ -44,6 +44,9 @@
     "backendRuntimeStack": {
       "value": "${BACKEND_RUNTIME_STACK}"
     },
+    "appServicePlanSku": {
+      "value": "${AZURE_ENV_APP_SERVICE_PLAN_SKU=B2}"
+    },
     "azureAiServiceLocation": {
       "value": "${AZURE_ENV_AI_SERVICE_LOCATION}"
     },
@@ -64,6 +67,12 @@
     },
     "fabricCapacitySku": {
       "value": "${FABRIC_CAPACITY_SKU=F2}"
+    },
+    "fabricCapacityLocation": {
+      "value": "${AZURE_ENV_FABRIC_CAPACITY_LOCATION=}"
+    },
+    "cosmosDbLocation": {
+      "value": "${AZURE_ENV_COSMOS_DB_LOCATION=}"
     },
     "fabricAdminMembers": {
       "value": "${FABRIC_ADMIN_MEMBERS=[]}"

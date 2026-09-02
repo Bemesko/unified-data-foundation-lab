@@ -142,7 +142,13 @@ param azureFabricCapacityName string = ''
 @description('Optional. SKU tier of the Fabric capacity resource.')
 param fabricCapacitySku string = 'F2'
 
-@description('Optional. Additional user/service principal object IDs to assign as Fabric Capacity admins.')
+@description('Optional. Azure region for a new Fabric capacity. Empty uses the primary Azure region.')
+param fabricCapacityLocation string = ''
+
+@description('Optional. Azure region for a new Cosmos DB account. Empty uses the primary Azure region.')
+param cosmosDbLocation string = ''
+
+@description('Optional. Fabric Capacity admin identities. When provided, replaces the default deploying user identity.')
 param fabricAdminMembers array = []
 
 // ============================================================================
@@ -193,7 +199,6 @@ var deployingUserPrincipalId = deployerInfo.objectId
 // Container Registry: per-deployment ACR name (registry names: alphanumeric, 5-50 chars)
 var containerRegistryResourceName = !empty(containerRegistryName) ? containerRegistryName : take('cr${solutionSuffix}', 50)
 var createdBy = contains(deployerInfo, 'userPrincipalName') ? split(deployerInfo.userPrincipalName, '@')[0] : deployerInfo.objectId
-var existingTags = resourceGroup().tags ?? {}
 
 var useExistingAIProject = !empty(existingFoundryProjectResourceId)
 var useChatHistoryEnabledSetting = useChatHistoryEnabled ? 'True' : 'False'
@@ -202,13 +207,13 @@ var useUserAccessTokenSetting = useUserAccessToken ? 'True' : 'False'
 var useExistingFabricCapacity = !empty(azureFabricCapacityName)
 var shouldCreateFabricCapacity = createFabricWorkspace && !useExistingFabricCapacity
 var fabricCapacityResourceName = useExistingFabricCapacity ? azureFabricCapacityName : 'fc${solutionSuffix}'
-var fabricCapacityDefaultAdmins = contains(deployerInfo, 'userPrincipalName')
-  ? [deployerInfo.userPrincipalName]
-  : [deployerInfo.objectId]
-var fabricTotalAdminMembers = union(fabricCapacityDefaultAdmins, fabricAdminMembers)
+var effectiveFabricCapacityLocation = empty(fabricCapacityLocation) ? location : fabricCapacityLocation
+var effectiveCosmosDbLocation = empty(cosmosDbLocation) ? location : cosmosDbLocation
+var fabricCapacityDefaultAdmins = [deployerInfo.userPrincipalName]
+var fabricTotalAdminMembers = empty(fabricAdminMembers) ? fabricCapacityDefaultAdmins : fabricAdminMembers
 
-// Tags: merge existing RG tags with standard metadata
-var resourceTags = union(existingTags, tags, {
+// Tags are explicit so azd preview can evaluate a newly created resource group.
+var resourceTags = union(tags, {
   TemplateName: 'Unified Data Analysis Agents'
   CreatedBy: createdBy
   DeploymentName: deployment().name
@@ -233,7 +238,7 @@ module fabricCapacity './modules/fabric/fabric-capacity.bicep' = if (shouldCreat
   params: {
     solutionName: solutionSuffix
     name: fabricCapacityResourceName
-    location: location
+    location: effectiveFabricCapacityLocation
     skuName: fabricCapacitySku
     adminMembers: fabricTotalAdminMembers
     tags: resourceTags
@@ -435,7 +440,7 @@ module cosmosDBModule './modules/data/cosmos-db-nosql.bicep' = {
   params: {
     solutionName: solutionSuffix
     name: 'cosmos-${solutionSuffix}'
-    location: location
+    location: effectiveCosmosDbLocation
     databaseName: 'db_conversation_history'
     containers: [
       { name: 'conversations', partitionKeyPath: '/userId' }
@@ -462,7 +467,7 @@ module containerRegistry './modules/compute/container-registry.bicep' = {
     solutionName: solutionSuffix
     name: containerRegistryResourceName
     location: location
-    tags: existingTags
+    tags: resourceTags
     sku: 'Standard'
     publicNetworkAccess: 'Enabled'
   }
@@ -597,8 +602,6 @@ module backend_csapi_docker './modules/compute/app-service.bicep' = if (backendR
   scope: resourceGroup(resourceGroup().name)
 }
 
-var apiBaseUrl = backendRuntimeStack == 'python' ? backend_docker!.outputs.appUrl : backend_csapi_docker!.outputs.appUrl
-
 module frontend_docker './modules/compute/app-service.bicep' = {
   name: take('module.app-service-frontend.${solutionName}', 64)
   params: {
@@ -610,7 +613,8 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     acrUseManagedIdentityCreds: true
     appSettings: {
       APPINSIGHTS_INSTRUMENTATIONKEY: app_insights.outputs.instrumentationKey
-      APP_API_BASE_URL: apiBaseUrl
+      APP_API_BASE_URL: ''
+      BACKEND_API_HOST: backendRuntimeStack == 'python' ? 'api-${solutionSuffix}.azurewebsites.net' : 'api-cs-${solutionSuffix}.azurewebsites.net'
       CHAT_LANDING_TEXT: ''
       APP_TITLE_PRIMARY: appTitlePrimary
       APP_TITLE_SECONDARY: appTitleSecondary
@@ -758,4 +762,3 @@ output AZURE_FABRIC_CAPACITY_NAME string = createFabricWorkspace ? fabricCapacit
 
 @description('The identities assigned as Fabric Capacity Admin members.')
 output FABRIC_ADMIN_MEMBERS array = shouldCreateFabricCapacity ? fabricTotalAdminMembers : []
-

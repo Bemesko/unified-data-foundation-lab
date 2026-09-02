@@ -448,13 +448,13 @@ def update_frontend_app_settings():
     """
     subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
     resource_group = os.getenv("RESOURCE_GROUP_NAME")
+    api_name = os.getenv("API_APP_NAME", "")
 
     # Frontend app name: same pattern as backend but prefixed with "app-"
     # The webapp name is stored as WEB_APP_NAME or derived from the API app name
     web_app_name = os.getenv("WEB_APP_NAME")
     if not web_app_name:
         # Derive from API_APP_NAME (api-xxx -> app-xxx)
-        api_name = os.getenv("API_APP_NAME", "")
         if api_name.startswith("api-"):
             web_app_name = "app-" + api_name[4:]
 
@@ -493,6 +493,11 @@ def update_frontend_app_settings():
         props = dict(current.properties or {})
 
         new_settings = {
+            "BACKEND_API_HOST": (
+                f"{api_name}.azurewebsites.net"
+                if api_name
+                else props.get("BACKEND_API_HOST", "")
+            ),
             "CHAT_LANDING_TEXT": landing_text,
             "APP_TITLE_PRIMARY": app_title,
             "APP_TITLE_SECONDARY": app_header,

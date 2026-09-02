@@ -34,13 +34,13 @@ from azure.identity import DefaultAzureCredential
 from azure.search.documents.indexes import SearchIndexClient
 
 # ============================================================================
-# Ensure deployer has required roles on AI Foundry (needed for embeddings)
+# Ensure deployer has required roles on AI Foundry and Azure AI Search
 # ============================================================================
 
 def ensure_deployer_roles():
     """
-    Ensure the deployer has Cognitive Services User and Foundry User roles
-    on the AI Foundry resource. Skips if already assigned.
+    Ensure the current post-provisioning user has the data-plane roles required
+    by Azure AI Foundry and Azure AI Search. Skips roles already assigned.
     """
     import subprocess
 
@@ -56,18 +56,29 @@ def ensure_deployer_roles():
     resource_group = parts[4]
     ai_service_name = parts[8]
 
-    roles = {
-        "Cognitive Services User": "a97b65f3-24c7-4388-baec-2e87135dc908",
-        "Foundry User": "53ca6127-db72-4b80-b1b0-d745d6d5456d",
-    }
-
-    scope = (
+    foundry_scope = (
         f"/subscriptions/{subscription_id}"
         f"/resourceGroups/{resource_group}"
         f"/providers/Microsoft.CognitiveServices/accounts/{ai_service_name}"
     )
     print(f"  Resource ID: {foundry_resource_id}")
-    print(f"  Scope: {scope}")
+    print(f"  Scope: {foundry_scope}")
+
+    search_resource_id = os.getenv("AZURE_AI_SEARCH_RESOURCE_ID", "").strip()
+    if not search_resource_id:
+        search_name = os.getenv("AZURE_AI_SEARCH_ENDPOINT", "").removeprefix("https://").split(".")[0]
+        search_resource_id = (
+            f"/subscriptions/{subscription_id}"
+            f"/resourceGroups/{resource_group}"
+            f"/providers/Microsoft.Search/searchServices/{search_name}"
+        )
+
+    roles = [
+        ("Cognitive Services User", "a97b65f3-24c7-4388-baec-2e87135dc908", foundry_scope),
+        ("Foundry User", "53ca6127-db72-4b80-b1b0-d745d6d5456d", foundry_scope),
+        ("Search Index Data Contributor", "8ebe5a00-799e-43f5-93ac-243d3dce84a7", search_resource_id),
+        ("Search Service Contributor", "7ca78c08-252a-4471-8644-bb5ff32d4ba0", search_resource_id),
+    ]
 
     try:
         result = subprocess.run(
@@ -89,7 +100,7 @@ def ensure_deployer_roles():
     except FileNotFoundError:
         return
 
-    for role_name, role_id in roles.items():
+    for role_name, role_id, scope in roles:
         check_cmd = (
             f'az role assignment list --assignee "{deployer_principal_id}" '
             f'--role "{role_id}" --scope "{scope}" --query "length(@)" -o tsv'

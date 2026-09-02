@@ -92,7 +92,7 @@ param containerRegistryName string = ''
 param backendRuntimeStack string = 'python'
 
 @allowed(['F1', 'D1', 'B1', 'B2', 'B3', 'S1', 'S2', 'S3', 'P1', 'P2', 'P3', 'P1v3', 'P1v4'])
-@description('Optional. App Service Plan SKU (used by AVM flavors).')
+@description('Optional. App Service Plan SKU.')
 param appServicePlanSku string = 'B2'
 
 // ============================================================================
@@ -172,8 +172,14 @@ param azureFabricCapacityName string = ''
 @description('Optional. SKU tier of the Fabric capacity resource.')
 param fabricCapacitySku string = 'F2'
 
-@description('Optional. Additional user/service principal object IDs to assign as Fabric Capacity admins.')
-param fabricAdminMembers array = []
+@description('Optional. Azure region for a new Fabric capacity. Empty uses the primary Azure region.')
+param fabricCapacityLocation string = ''
+
+@description('Optional. Azure region for a new Cosmos DB account. Empty uses the primary Azure region.')
+param cosmosDbLocation string = ''
+
+@description('Optional. JSON array of Fabric Capacity admin identities. When provided, replaces the default deploying user identity.')
+param fabricAdminMembers string = '[]'
 
 @secure()
 @description('Optional. VM admin username (AVM-WAF only, when private networking is enabled).')
@@ -190,6 +196,7 @@ param vmSize string = 'Standard_D2s_v5'
 // Derived Variables
 // ============================================================================
 
+var fabricAdminMembersArray = json(fabricAdminMembers)
 var isAvm = deploymentFlavor == 'avm' || deploymentFlavor == 'avm-waf'
 var isBicep = deploymentFlavor == 'bicep'
 
@@ -238,7 +245,9 @@ module avmDeployment './avm/main.bicep' = if (isAvm) {
     createFabricWorkspace: createFabricWorkspace
     azureFabricCapacityName: azureFabricCapacityName
     fabricCapacitySku: fabricCapacitySku
-    fabricAdminMembers: fabricAdminMembers
+    fabricCapacityLocation: fabricCapacityLocation
+    cosmosDbLocation: cosmosDbLocation
+    fabricAdminMembers: fabricAdminMembersArray
   }
 }
 
@@ -277,7 +286,9 @@ module bicepDeployment './bicep/main.bicep' = if (isBicep) {
     createFabricWorkspace: createFabricWorkspace
     azureFabricCapacityName: azureFabricCapacityName
     fabricCapacitySku: fabricCapacitySku
-    fabricAdminMembers: fabricAdminMembers
+    fabricCapacityLocation: fabricCapacityLocation
+    cosmosDbLocation: cosmosDbLocation
+    fabricAdminMembers: fabricAdminMembersArray
   }
 }
 

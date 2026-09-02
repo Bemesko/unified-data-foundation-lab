@@ -296,6 +296,8 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
     ```
     > You can find your workspace ID in the Fabric URL: `https://app.fabric.microsoft.com/groups/<workspace-id>/...`
     > If you omit `FABRIC_WORKSPACE_ID`, a new Fabric capacity and workspace will be created automatically.
+    >
+    > **Quota-driven split-region deployment:** Leave `AZURE_ENV_FABRIC_CAPACITY_LOCATION`, `AZURE_ENV_COSMOS_DB_LOCATION`, and `AZURE_ENV_AI_SERVICE_LOCATION` unset to use `AZURE_LOCATION`. If App Service quota requires a different primary region, set each service-specific variable to a region that supports its required workloads and capacity.
 
 2. Provision and deploy all the resources:
 
